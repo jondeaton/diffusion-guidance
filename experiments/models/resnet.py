@@ -74,3 +74,15 @@ class ResNet(eqx.Module):
             x = block(x)
         return self.head(x.mean(axis=0))[:, 0]
 
+
+class Model():
+
+    def __init__(self):
+        self.tokenizer = Tokenizer(...)
+        self.model = ResNet(...)
+        self._fwd = eqx.filter_jit(eqx.filter_vmap(self.model))
+
+    def __call__(self, sequences: list[str]):
+        tokens = self.tokenizer.encode_batch(sequences)
+        return self._fwd(tokens)
+

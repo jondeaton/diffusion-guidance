@@ -1,8 +1,10 @@
 
-from slip import potts_model
+import numpy as np
 
 import tokenizers
-import numpy as np
+import tokenizers.models
+import tokenizers.pre_tokenizers
+import tokenizers.processors
 
 import slip.potts_model
 
@@ -37,7 +39,6 @@ def _tokenizer() -> tokenizers.Tokenizer:
     return tokenizer
 
 
-
 class Landscape:
 
     def __init__(
@@ -52,6 +53,11 @@ class Landscape:
             coupling_scale=coupling_scale,
         )
         self.tokenizer = _tokenizer()
+        self.vocab = list("LAGVSERTIDPKQNFYMHWCXBUZO")
+
+    @property
+    def wildtype(self) -> str:
+        return self.potts.wildtype_sequence
 
     def fitness(self, sequence: str) -> float:
         ids: list[int] = self.tokenizer.encode(sequence).ids
@@ -61,7 +67,7 @@ class Landscape:
         ids = self.tokenizer.encode_batch(sequences).ids
         return self.potts.evaluate(ids)
 
-    def __call__(self, sequences: list[str]) -> np.ndarray:
+    def measure(self, sequences: list[str]) -> np.ndarray:
         fitness = self.batch_fitness(sequences)
         noise = np.random.normal(size=len(sequences))
         return fitness + self.measurement_noise * noise

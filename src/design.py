@@ -5,50 +5,63 @@ import pandas as pd
 from tqdm import tqdm
 import random
 
+from typing import Callable
+
+
 def design_batch(
-    model: Callable[[list[str]], np.ndarray],
-    seqs: list[str],
+    acquisition_fn: Callable[[list[str]], list[float]],
+    sequences: list[str],
     batch_size: int,
-    iters: int = 10,
+    pool_size: int | None = None,
+    iters: int = 4,
 ):
-    df = pd.DataFrame({'sequence': seqs})
+    """Design a batch of sequences with acquisition function."""
+    pool_size = pool_size or batch_size
+    df = pd.DataFrame({'sequence': sequences})
 
-    pbar = tqdm(range(iters))
-    for _ in pbar:
-        df.drop_duplicates('sequence')
+    for _ in range(iters):
+        pool = set(df.sequence)
+        cross = [
+            crossover(a, b) for a, b in
+            zip(df.sequence.sample(pool_size), df.sequence.sample(pool_size))
+        ]
+        pool.union(cross)
 
-        df['pred'] = model(df.sequence)
-        avg = df.pred.mean()
-        pbar.set_description(f"average score: {avg:.4f}")
-        df = df.sort_values(by='pred', ascending=False).head(100)
+        for sequence in pool:
+            pool.union(mutate(sequence, 1, 3, vocab))
 
-        seqs = []
-        for seq in df.seq:
+        df = pd.DataFrame({"sequence": pool})
+        df['af'] = acquisition_fn(df.sequence)
+        df = df.sort_values(by='af', ascending=False).head(pool_size)
 
-            muts = sampling.sample_within_hamming_radius(
-                seq, 10,
-                landscape.vocab_size,
-                min_mutations=1,
-                max_mutations=3,
-            )
-            seqs.extend(muts)
-        df = pd.DataFrame({'sequence': seqs})
+    return df.sort_values(by='af', ascending=False).head(batch_size)
 
-    tokens = torch.tensor(df.seq, dtype=torch.long).to(device)
-    df['pred'] = model.forward(tokens)[:, 0].cpu().detach().numpy()
-    return df.sort_values(by='pred', ascending=False).head(batch_size)
+
+def design_batches(
+    batch_af: Callable[[list[str]], float],
+):
+    del batch_af
+    # TODO: batch BO design.
+    ...
 
 
 def crossover(s0: str, s1: str):
-    assert len(s0) == len(s1)
+    """Combines two sequences with crossover."""
+    assert len(s0) == len(s1), "Sequences must be same length."
     i = random.randint(0, len(s0) - 1)
     if random.randint(0, 1):
         s0, s1 = s1, s0
     return s0[:i] + s1[i:]
 
-def mutate(seq: str, num_mutations: int):
-    chars = list(seq)
-    positions = np.random.randint(0, len(seq))
-    for i in positions:
-        chars[i] = random.choice
 
+def mutate(
+    seq: str,
+    min_mutations: int,
+    max_mutations: int,
+    vocab: list[str],
+) -> list[str]:
+    # chars = list(seq)
+    # positions = np.random.randint(0, len(seq))
+    # for i in positions:
+    #     chars[i] = random.choice
+    #
