@@ -1,0 +1,4 @@
+[project]
+name = "diffusion-guidance"
+version = "0.0.1"
+description = "Diffusion Guidance for Batch Bayesian Optimization"
