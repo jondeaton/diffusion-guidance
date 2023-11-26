@@ -60,8 +60,8 @@ def mutate(
     max_mutations: int,
     vocab: list[str],
 ) -> list[str]:
-    # chars = list(seq)
-    # positions = np.random.randint(0, len(seq))
-    # for i in positions:
-    #     chars[i] = random.choice
-    #
+    chars = list(seq)
+    positions = np.random.randint(0, len(seq))
+    for i in positions:
+        chars[i] = random.choice
+
