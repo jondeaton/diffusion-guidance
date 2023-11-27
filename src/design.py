@@ -12,27 +12,34 @@ def design_batch(
     acquisition_fn: Callable[[list[str]], list[float]],
     sequences: list[str],
     batch_size: int,
+    vocab: list[str],
     pool_size: int | None = None,
-    iters: int = 4,
+    iters: int = 10,
 ):
     """Design a batch of sequences with acquisition function."""
     pool_size = pool_size or batch_size
     df = pd.DataFrame({'sequence': sequences})
 
-    for _ in range(iters):
-        pool = set(df.sequence)
-        cross = [
+    pbar = tqdm(range(iters))
+    for _ in pbar:
+        pool = df.sequence.tolist()
+        crosses = [
             crossover(a, b) for a, b in
-            zip(df.sequence.sample(pool_size), df.sequence.sample(pool_size))
+            zip(
+                df.sequence.sample(pool_size, replace=True),
+                df.sequence.sample(pool_size, replace=True)
+            )
         ]
-        pool.union(cross)
+        pool.extend(crosses)
 
-        for sequence in pool:
-            pool.union(mutate(sequence, 1, 3, vocab))
+        muts = [mutate(s, 1, 10, vocab) for s in pool]
+        pool.extend(muts)
 
         df = pd.DataFrame({"sequence": pool})
+        df.drop_duplicates('sequence', inplace=True)
         df['af'] = acquisition_fn(df.sequence)
         df = df.sort_values(by='af', ascending=False).head(pool_size)
+        pbar.set_description(f'af: {df.af.mean()}')
 
     return df.sort_values(by='af', ascending=False).head(batch_size)
 
@@ -59,9 +66,11 @@ def mutate(
     min_mutations: int,
     max_mutations: int,
     vocab: list[str],
-) -> list[str]:
-    chars = list(seq)
-    positions = np.random.randint(0, len(seq))
-    for i in positions:
-        chars[i] = random.choice
+) -> str:
+    chars = bytearray(seq, 'utf8')
+    num_mutations = np.random.randint(min_mutations, max_mutations + 1)
+    positions = random.choices(range(len(seq)), k=num_mutations)
+    for pos in positions:
+        chars[pos] = ord(random.choice(vocab))
+    return chars.decode()
 

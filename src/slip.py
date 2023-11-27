@@ -21,11 +21,11 @@ class Landscape:
             coupling_scale=coupling_scale,
         )
         self.tokenizer = tokenizers.basic_tokenizer()
-        self.vocab = list("LAGVSERTIDPKQNFYMHWCXBUZO")
+        self.vocab = tokenizers.MOGWAI_VOCAB
 
     @property
     def wildtype(self) -> str:
-        return self.potts.wildtype_sequence
+        return self.tokenizer.decode(self.potts.wildtype_sequence)
 
     def fitness(self, sequence: str) -> float:
         ids: list[int] = self.tokenizer.encode(sequence).ids
