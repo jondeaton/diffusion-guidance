@@ -14,6 +14,7 @@ from scipy.stats import spearmanr
 
 from src import design
 from src.models import xgb
+from src.models import gp
 
 import wandb
 
@@ -70,6 +71,8 @@ def main():
         }
     )
     df['measurement'] = df.sequence.apply(landscape.measure)
+    df['fitness'] = df.sequence.apply(landscape.fitness)
+    print('Starting pool Avg fitness:', df.fitness.mean())
 
     for round in range(config.num_rounds):
         print()
@@ -82,7 +85,8 @@ def main():
         )
         print(f'split sizes: {df.split.value_counts().tolist()}')
 
-        model = xgb.Model()
+        # model = xgb.Model()
+        model = gp.Model()
         model.fit(
             df[df.split == "train"].sequence,
             df[df.split == "train"].measurement,
@@ -98,22 +102,35 @@ def main():
         ).statistic
         print(f'Spearman: train {train_spearman:.4f}, {test_spearman:.4f}')
 
+        f_best = df.measurement.max()
+        from scipy.stats import norm
+
+        def acquisition_fn(seqs: list[str]) -> np.ndarray:
+            mu, sigma = model.predict(seqs, return_std=True)
+
+            # Upper Confidence Bound.
+            return mu + (10 / (1 + round)) * sigma
+
+            # Expected Improvement.
+            Z = (mu - f_best) / sigma
+            return (mu - f_best) * norm.cdf(Z) + sigma * norm.pdf(Z)
+
         df_batch = design.design_batch(
-            acquisition_fn=model.predict,
+            acquisition_fn=acquisition_fn,
             sequences=df[df.split == "test"].sequence,
             batch_size=config.batch_size,
             pool_size=128,
             vocab=vocab,
-            iters=round + 1,
+            iters=10,
         )
         print(f'AF mean: {df_batch.af.mean()}')
 
         df_batch['round_'] = round
         df_batch['measurement'] = df_batch.sequence.apply(landscape.measure)
+        df_batch['fitness'] = df_batch.sequence.apply(landscape.fitness)
         df = pd.concat([df, df_batch], axis=0)
 
         # Round metrics.
-        df['fitness'] = df.sequence.apply(landscape.fitness)
         df.sort_values(by='fitness', ascending=False, inplace=True)
         round_average = df[df.round_ == round].fitness.mean()
         print(f'Average fitness:', round_average)
