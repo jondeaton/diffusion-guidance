@@ -42,7 +42,7 @@ def main():
         batch_size=96,
         pdb="3er7",
         coupling_scale=1.0,
-        measurement_noise=0.0,
+        measurement_noise=1.0,
     )
 
     landscape = slip.Landscape(
@@ -86,7 +86,7 @@ def main():
         print(f'split sizes: {df.split.value_counts().tolist()}')
 
         # model = xgb.Model()
-        model = gp.Model()
+        model = gp.Model(noise_std=config.measurement_noise)
         model.fit(
             df[df.split == "train"].sequence,
             df[df.split == "train"].measurement,
@@ -109,21 +109,21 @@ def main():
             mu, sigma = model.predict(seqs, return_std=True)
 
             # Upper Confidence Bound.
-            return mu + (10 / (1 + round)) * sigma
+            return mu + (1 / (1 + round)) * sigma
 
             # Expected Improvement.
-            Z = (mu - f_best) / sigma
-            return (mu - f_best) * norm.cdf(Z) + sigma * norm.pdf(Z)
+            # Z = (mu - f_best) / sigma
+            # return (mu - f_best) * norm.cdf(Z) + sigma * norm.pdf(Z)
 
         df_batch = design.design_batch(
             acquisition_fn=acquisition_fn,
             sequences=df[df.split == "test"].sequence,
             batch_size=config.batch_size,
-            pool_size=128,
+            pool_size=1024,
             vocab=vocab,
             iters=10,
         )
-        print(f'AF mean: {df_batch.af.mean()}')
+        # print(f'AF mean: {df_batch.af.mean()}')
 
         df_batch['round_'] = round
         df_batch['measurement'] = df_batch.sequence.apply(landscape.measure)

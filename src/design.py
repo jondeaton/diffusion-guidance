@@ -37,9 +37,11 @@ def design_batch(
 
         df = pd.DataFrame({"sequence": pool})
         df.drop_duplicates('sequence', inplace=True)
+
         df['af'] = acquisition_fn(df.sequence)
         df = df.sort_values(by='af', ascending=False).head(pool_size)
-        pbar.set_description(f'af: {df.af.mean()}')
+
+        pbar.set_description(f'AF: {df.af.mean():.5f}')
 
     return df.sort_values(by='af', ascending=False).head(batch_size)
 
