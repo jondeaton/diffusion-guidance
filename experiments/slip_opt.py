@@ -21,11 +21,10 @@ import wandb
 from src import slip
 from src import tokenizers
 
-
-DEBUG: bool = True
-
 import hydra
 from omegaconf import DictConfig, OmegaConf
+
+DEBUG: bool = True
 
 
 @hydra.main(version_base=None, config_path="../conf")
@@ -48,16 +47,16 @@ def main(config : DictConfig):
     df = pd.DataFrame(
         {
             "sequence": [
-                # landscape.wildtype,
+                landscape.wildtype,
                 *[
                     design.mutate(landscape.wildtype, 3, 5, vocab)
-                    for _ in range(96)
+                    for _ in range(config.task.batch_size)
                 ]
             ]
         }
     )
-    df['measurement'] = df.sequence.apply(landscape.measure)
-    df['fitness'] = df.sequence.apply(landscape.fitness)
+    df['measurement'] = landscape.batch_measure(df.sequence)
+    df['fitness'] = landscape.batch_fitness(df.sequence)
     print('Starting pool Avg fitness:', df.fitness.mean())
 
     for round in range(config.task.num_rounds):
@@ -109,17 +108,16 @@ def main(config : DictConfig):
             vocab=vocab,
             iters=config.design.iters,
         )
-        # print(f'AF mean: {df_batch.af.mean()}')
 
         df_batch['round_'] = round
-        df_batch['measurement'] = df_batch.sequence.apply(landscape.measure)
-        df_batch['fitness'] = df_batch.sequence.apply(landscape.fitness)
+        df_batch['measurement'] = landscape.batch_measure(df_batch.sequence)
+        df_batch['fitness'] = landscape.batch_fitness(df_batch.sequence)
         df = pd.concat([df, df_batch], axis=0)
 
         # Round metrics.
         df.sort_values(by='fitness', ascending=False, inplace=True)
         round_average = df[df.round_ == round].fitness.mean()
-        print(f'Average fitness:', round_average)
+        print(f'Average fitness: {round_average:.4f}')
 
         if not DEBUG:
             wandb.log({

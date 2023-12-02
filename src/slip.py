@@ -29,10 +29,10 @@ class Landscape:
 
     def fitness(self, sequence: str) -> float:
         ids: list[int] = self.tokenizer.encode(sequence).ids
-        return self.potts.evaluate(ids)
+        return self.potts.evaluate(ids)[0]
 
     def batch_fitness(self, sequences: list[str]) -> np.ndarray:
-        ids = self.tokenizer.encode_batch(sequences).ids
+        ids = [t.ids for t in self.tokenizer.encode_batch(sequences)]
         return self.potts.evaluate(ids)
 
     def measure(self, sequence: str) -> float:
