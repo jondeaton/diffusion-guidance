@@ -1,0 +1,16 @@
+
+model:
+  name: "gp"
+
+design:
+  pool_size: 1024
+  iters: 10
+
+
+task:
+  num_rounds: 10
+  batch_size: 96
+  slip:
+    pdb: 3er7
+    coupling_scale: 1.0
+    measurement_noise: 1.0

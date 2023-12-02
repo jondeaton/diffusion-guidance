@@ -22,39 +22,25 @@ from src import slip
 from src import tokenizers
 
 
-@dataclasses.dataclass
-class Config:
-    num_rounds: int
-    batch_size: int
-
-    # Landscape.
-    pdb: str
-    coupling_scale: float
-    measurement_noise: float
-
-
 DEBUG: bool = True
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
-def main():
-    config = Config(
-        num_rounds=10,
-        batch_size=96,
-        pdb="3er7",
-        coupling_scale=1.0,
-        measurement_noise=1.0,
-    )
+
+@hydra.main(version_base=None, config_path="../conf")
+def main(config : DictConfig):
 
     landscape = slip.Landscape(
-        pdb=config.pdb,
-        coupling_scale=config.coupling_scale,
-        measurement_noise=config.measurement_noise,
+        pdb=config.task.slip.pdb,
+        coupling_scale=config.task.slip.coupling_scale,
+        measurement_noise=config.task.slip.measurement_noise,
     )
 
     if not DEBUG:
         wandb.init(
             project="slip-design",
-            config=dataclasses.asdict(config),
+            config=config,
         )
 
     vocab = tokenizers.MOGWAI_VOCAB
@@ -74,7 +60,7 @@ def main():
     df['fitness'] = df.sequence.apply(landscape.fitness)
     print('Starting pool Avg fitness:', df.fitness.mean())
 
-    for round in range(config.num_rounds):
+    for round in range(config.task.num_rounds):
         print()
         print(f'Round: {round}')
 
@@ -86,7 +72,7 @@ def main():
         print(f'split sizes: {df.split.value_counts().tolist()}')
 
         # model = xgb.Model()
-        model = gp.Model(noise_std=config.measurement_noise)
+        model = gp.Model(noise_std=config.task.slip.measurement_noise)
         model.fit(
             df[df.split == "train"].sequence,
             df[df.split == "train"].measurement,
@@ -118,10 +104,10 @@ def main():
         df_batch = design.design_batch(
             acquisition_fn=acquisition_fn,
             sequences=df[df.split == "test"].sequence,
-            batch_size=config.batch_size,
-            pool_size=1024,
+            batch_size=config.task.batch_size,
+            pool_size=config.design.pool_size,
             vocab=vocab,
-            iters=10,
+            iters=config.design.iters,
         )
         # print(f'AF mean: {df_batch.af.mean()}')
 
