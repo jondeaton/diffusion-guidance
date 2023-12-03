@@ -1,6 +1,10 @@
 """Experiments optimizing SLIP landscapes with ML. """
 
 import os
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+
 import random
 import dataclasses
 import functools
@@ -15,6 +19,7 @@ from scipy.stats import spearmanr
 from src import design
 from src.models import xgb
 from src.models import gp
+from src.models import esm
 
 import wandb
 
@@ -71,10 +76,12 @@ def main(config : DictConfig):
         print(f'split sizes: {df.split.value_counts().tolist()}')
 
         # model = xgb.Model()
-        model = gp.Model(noise_std=config.task.slip.measurement_noise)
+        # model = gp.Model(noise_std=config.task.slip.measurement_noise)
+        model = esm.Model()
+
         model.fit(
-            df[df.split == "train"].sequence,
-            df[df.split == "train"].measurement,
+            df[df.split == "train"].sequence.tolist(),
+            df[df.split == "train"].measurement.values,
         )
 
         train_spearman = spearmanr(
