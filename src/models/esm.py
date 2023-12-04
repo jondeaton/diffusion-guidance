@@ -7,6 +7,15 @@ import torch.nn as nn
 from tqdm import tqdm
 
 
+def which_device() -> torch.device:
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
+
 def mlp(in_size: int, hidden_size: int, out_size: int):
     return nn.Sequential(
         nn.LayerNorm(in_size),
@@ -68,7 +77,7 @@ class Model:
         model, alphabet = esm.pretrained.esm2_t6_8M_UR50D()
         self.batch_converter = alphabet.get_batch_converter()
         
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = which_device()
         self.model = model.to(self.device)
         self.model = self.model.eval()
         for param in self.model.parameters():
@@ -82,28 +91,26 @@ class Model:
     def fit(self, seqs, y):
         tokens = self.tokenize(seqs)
         x = self._get_reprs(tokens)
-        y = torch.tensor(y, device=self.device)
+        y = torch.tensor(y, device=self.device, dtype=torch.float32)
         # tokens_val = self.batch_converter(seqs_val)
         # x_val = self._get_reprs(tokens_val)
 
         optimizer = torch.optim.AdamW(
             self.pooling.parameters(), lr=0.001, weight_decay=0.1)
         
-        pbar = tqdm(range(100))
+        pbar = tqdm(range(1000))
         for i in pbar:
             optimizer.zero_grad()
             mus, log_stds = self.pooling(x)
-
             loss = gaussian_nll(mus, log_stds, y)
 
             loss.backward()
             optimizer.step()
 
-            loss_val = loss.to('cpu').detach().numpy()
-            pbar.set_description(f'loss: {loss_val:.5f}')
+            if i % 50 == 0:
+                loss_val = loss.to('cpu').detach().numpy()
+                pbar.set_description(f'loss: {loss_val:.5f}')
 
-            if i % 100 == 0:
-                ...
                 # train_pred = preds.to('cpu').detach().numpy()
                 # test_pred =  self.pooling(x_val).to('cpu').detach().numpy()
 
@@ -118,13 +125,17 @@ class Model:
     def tokenize(self, sequences: list[str]) -> torch.Tensor:
         _, _, tokens =  self.batch_converter(list(enumerate(sequences)))
         return tokens
-
-    def _get_reprs(self, tokens):
+    
+    def _get_reprs(self, tokens, chunk_size: int = 128):
         num_layers = len(self.model.layers)
-        # tood: OOM here when batch is too big... maybe need to loop through it
-        results = self.model(
-            tokens.to(self.device), repr_layers=[num_layers])
-        return results['representations'][num_layers]
+        outputs = []
+        for chunk in torch.split(tokens.to(self.device), chunk_size):
+            results = self.model(
+                chunk, repr_layers=[num_layers],
+            )
+            out = results['representations'][num_layers]
+            outputs.append(out)
+        return torch.concat(outputs)
     
     def predict(self, sequences: list[str], return_std: bool = False) -> tuple[np.ndarray, np.ndarray]:
         tokens = self.tokenize(sequences)

@@ -2,3 +2,9 @@
 name = "diffusion-guidance"
 version = "0.0.1"
 description = "Diffusion Guidance for Batch Bayesian Optimization"
+authors = [
+    {name = "Jon Deaton", email = "<jonpauldeaton@gmail.com>"},
+]
+dependencies = [
+    "python", "numpy", "xgboost", "torch", "wandb", "hydra"
+]
